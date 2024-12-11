@@ -1,4 +1,3 @@
-// main.rs
 mod articles;
 mod config;
 mod markdown;

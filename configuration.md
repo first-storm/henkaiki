@@ -1,4 +1,4 @@
-# Configuration Guide for the Article Management System
+# Configuration Guide for Henkaiki
 
 This document serves as a comprehensive guide to configuring the Article Management System. It outlines the configuration file structure, available parameters, their default values, and how they influence the behavior of the system.
 
