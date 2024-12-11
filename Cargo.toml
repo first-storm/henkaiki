@@ -1,0 +1,16 @@
+[package]
+name = "henkaiki"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web = "4"
+serde = { version = "1.0.215", features = ["derive"] }
+comrak = "0.31"
+toml = "0.8.19"
+#tempfile = "3.14.0"
+lazy_static = "1.5.0"
+log = "0.4.22"
+env_logger = "0.11.5"
+lru = "0.7"
+anyhow = "1.0"
