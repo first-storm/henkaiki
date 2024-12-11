@@ -106,7 +106,7 @@ The `[mainconfig]` section contains general settings that affect the application
 - **Example**:
 
   ```toml
-  address = "192.168.1.1"
+  address = "0.0.0.0"
   ```
 
 #### `port`
@@ -315,11 +315,11 @@ Below is an example of a `config.toml` file that demonstrates how to configure t
 
 ```toml
 [mainconfig]
-articles_dir = "my_articles"
+articles_dir = "articles"
 max_cached_articles = 50
 sample_article = true
-address = "192.168.1.1"
-port = 9090
+address = "127.0.0.1"
+port = 8080
 
 [extensions]
 strikethrough = true
@@ -341,11 +341,11 @@ greentext = true
 
 - **Main Configuration**:
 
-  - **articles_dir**: The articles are stored in the `./my_articles` directory relative to where the application is run.
+  - **articles_dir**: The articles are stored in the `./articles` directory relative to where the application is run.
   - **max_cached_articles**: The application will cache up to `50` articles in memory.
   - **sample_article**: The sample article with ID `0` is included and can be accessed via the API.
-  - **address**: The application will bind to the IP address `192.168.1.1`.
-  - **port**: The application will bind to port `9090`.
+  - **address**: The application will bind to the IP address `0.0.0.0`.
+  - **port**: The application will bind to port `8080`.
 
 - **Markdown Extensions**:
 
