@@ -34,11 +34,15 @@ pub struct Config {
 #[derive(Debug, Deserialize, Default)]
 pub struct Main {
     #[serde(default = "default_path")]
-    pub articles_dir: String,  // Changed from PathBuf to String
+    pub articles_dir: String,  // Directory where articles are stored
     #[serde(default = "default_max_cached_articles")]
-    pub max_cached_articles: usize,  // New field for max cached articles
+    pub max_cached_articles: usize,  // Maximum number of articles to cache
     #[serde(default = "default_sample_article")]
-    pub sample_article: bool,  // New field for sample article
+    pub sample_article: bool,  // Flag to include a sample article
+    #[serde(default = "default_address")]
+    pub address: String,  // Server address to bind to
+    #[serde(default = "default_port")]
+    pub port: u16,  // Port number for the server
 }
 
 fn default_sample_article() -> bool {
@@ -54,6 +58,14 @@ fn default_path() -> String {
 
 fn default_max_cached_articles() -> usize {
     100 // Default max cached articles value
+}
+
+fn default_address() -> String {
+    "127.0.0.1".to_string()  // Default address value
+}
+
+fn default_port() -> u16 {
+    8080  // Default port value
 }
 
 #[derive(Debug, Deserialize)]

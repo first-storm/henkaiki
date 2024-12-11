@@ -99,13 +99,13 @@ async fn main() -> std::io::Result<()> {
                             .service(get_article_handler)
                             .service(refresh_article_handler),
                     )
-                    .service(
-                        web::scope("/index")
-                            .service(refresh_index_handler),
-                    )
+                    .service(web::scope("/index").service(refresh_index_handler)),
             )
     })
-    .bind(("127.0.0.1", 8080))? // Bind the server to the address
+    .bind((
+        config::CONFIG.mainconfig.address.clone(),
+        config::CONFIG.mainconfig.port,
+    ))? // Bind the server to the address
     .run()
     .await
 }

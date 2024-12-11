@@ -13,6 +13,8 @@ This document serves as a comprehensive guide to configuring the Article Managem
      - [`articles_dir`](#articles_dir)
      - [`max_cached_articles`](#max_cached_articles)
      - [`sample_article`](#sample_article)
+     - [`address`](#address)
+     - [`port`](#port)
    - [Markdown Extensions](#markdown-extensions)
      - [`strikethrough`](#strikethrough)
      - [`table`](#table)
@@ -94,6 +96,28 @@ The `[mainconfig]` section contains general settings that affect the application
 
   ```toml
   sample_article = true
+  ```
+
+#### `address`
+
+- **Description**: Specifies the IP address to bind the application to.
+- **Type**: String
+- **Default**: `127.0.0.1`
+- **Example**:
+
+  ```toml
+  address = "192.168.1.1"
+  ```
+
+#### `port`
+
+- **Description**: Specifies the port number to bind the application to.
+- **Type**: Integer
+- **Default**: `8080`
+- **Example**:
+
+  ```toml
+  port = 9090
   ```
 
 ### Markdown Extensions
@@ -256,6 +280,8 @@ If a parameter is not specified in the `config.toml` file, the application uses 
   - `articles_dir`: Current directory concatenated with `articles` (i.e., `articles`)
   - `max_cached_articles`: `100`
   - `sample_article`: `false`
+  - `address`: `127.0.0.1`
+  - `port`: `8080`
 
 - **Markdown Extensions**:
 
@@ -292,6 +318,8 @@ Below is an example of a `config.toml` file that demonstrates how to configure t
 articles_dir = "my_articles"
 max_cached_articles = 50
 sample_article = true
+address = "192.168.1.1"
+port = 9090
 
 [extensions]
 strikethrough = true
@@ -316,6 +344,8 @@ greentext = true
   - **articles_dir**: The articles are stored in the `./my_articles` directory relative to where the application is run.
   - **max_cached_articles**: The application will cache up to `50` articles in memory.
   - **sample_article**: The sample article with ID `0` is included and can be accessed via the API.
+  - **address**: The application will bind to the IP address `192.168.1.1`.
+  - **port**: The application will bind to port `9090`.
 
 - **Markdown Extensions**:
 
