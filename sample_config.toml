@@ -1,0 +1,21 @@
+[mainconfig]
+articles_dir = "articles"
+max_cached_articles = 50
+sample_article = true
+address = "127.0.0.1"
+port = 8080
+
+[extensions]
+strikethrough = true
+table = true
+autolink = true
+tasklist = true
+footnotes = true
+description_lists = true
+multiline_block_quotes = true
+math_dollars = true
+math_code = true
+wikilinks_title_after_pipe = true
+wikilinks_title_before_pipe = true
+spoiler = true
+greentext = true
