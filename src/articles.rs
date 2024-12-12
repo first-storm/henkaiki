@@ -117,6 +117,36 @@ lazy_static! {
     };
 }
 
+/// Articles management structure that handles article storage, caching, and retrieval
+/// 
+/// # Structure
+/// - `source_dir`: Directory containing article files
+/// - `cache`: LRU cache for storing parsed articles
+/// - `index`: Index structure for quick article lookup by ID and tags
+///
+/// # Methods
+/// ## Core Operations
+/// - `new()`: Creates new Articles instance with given source directory and cache
+/// - `load_index()`: Loads/reloads article index from filesystem
+/// - `refresh_index()`: Reloads article index
+/// - `clear_cache()`: Clears the article cache
+///
+/// ## Article Retrieval
+/// - `get_article()`: Gets single article by ID
+/// - `refresh_article()`: Reloads specific article from filesystem
+/// - `get_all_articles_without_content()`: Gets summaries of all articles
+/// - `get_articles_by_tag()`: Gets article summaries filtered by tag
+///
+/// ## Internal Helpers
+/// - `load_article_from_fs()`: Loads article content from filesystem
+/// - `read_metainfo()`: Parses article metadata from TOML
+/// - `read_file_to_string()`: Helper to read file contents
+///
+/// # Error Handling
+/// Methods return `Result` for handling filesystem and parsing errors
+///
+/// # Thread Safety
+/// Uses thread-safe structures (Arc, Mutex, DashMap) for concurrent access
 impl Articles {
     pub fn new(source_dir: PathBuf, cache: Arc<Mutex<LruCache<ArticleId, Article>>>) -> Self {
         info!("Articles initialized");
