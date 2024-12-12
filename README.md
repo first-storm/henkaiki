@@ -15,7 +15,7 @@ This project is the backend for a blog system, providing API endpoints for manag
 
 - The application requires a `config.toml` file in the working directory. This file specifies the articles directory, cache settings, and Markdown extensions.
 - New configuration options include enabling or disabling the sample article.
-- Refer to the [Configuration Guide](configuration.md) for detailed setup instructions.
+- Refer to the [Configuration Guide](docs/configuration.md) for detailed setup instructions.
 
 ### API Usage
 
@@ -30,7 +30,7 @@ This project is the backend for a blog system, providing API endpoints for manag
   - `/api/v1/admin/cache/clear`: Clear the entire article cache
   - `/api/v1/admin/index/refresh`: Rebuild the article index from the filesystem
 
-For more details, see the [API Documentation](api.md).
+For more details, see the [API Documentation](docs/api.md).
 
 ### Article Metadata
 
@@ -43,7 +43,7 @@ For more details, see the [API Documentation](api.md).
   - `tags`: List of tags associated with the article.
   - `keywords`: List of keywords for enhanced search and indexing. (NEW)
 - The `keywords` field provides an additional layer of metadata for more granular article searches.
-- See the [Metainfo Documentation](article.md) for more information.
+- See the [Metainfo Documentation](docs/article.md) for more information.
 
 ## Development
 
