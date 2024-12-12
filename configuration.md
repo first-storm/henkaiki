@@ -120,6 +120,18 @@ The `[mainconfig]` section contains general settings that affect the application
   port = 9090
   ```
 
+#### `record_cache_stats`
+
+- **Description**: Enables or disables the recording of cache statistics for monitoring and debugging purposes.
+- **Type**: Boolean
+- **Default**: `false`
+- **Example**:
+
+  ```toml
+  record_cache_stats = true
+  ```
+
+
 ### Markdown Extensions
 
 The `[extensions]` section configures which Markdown extensions are enabled during the parsing and rendering of articles.
@@ -320,6 +332,7 @@ max_cached_articles = 50
 sample_article = true
 address = "127.0.0.1"
 port = 8080
+record_cache_stats = true
 
 [extensions]
 strikethrough = true

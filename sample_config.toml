@@ -4,6 +4,7 @@ max_cached_articles = 50
 sample_article = true
 address = "127.0.0.1"
 port = 8080
+record_cache_stats = true
 
 [extensions]
 strikethrough = true

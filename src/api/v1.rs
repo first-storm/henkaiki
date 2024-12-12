@@ -1,12 +1,16 @@
+use std::sync::Mutex;
+
 use actix_web::{
-    get, post,
+    HttpResponse, Responder, get, post,
     web::{self, Data, Path},
-    HttpResponse, Responder,
 };
 use log::*;
 use serde::Serialize;
 
-use crate::articles::{ArticleId, Articles};
+use crate::{
+    articles::{ArticleId, Articles, Cached},
+    cache_recorder::CacheHit,
+};
 
 /// A generic API response structure for consistent JSON responses.
 #[derive(Serialize)]
@@ -14,6 +18,14 @@ struct ApiResponse<T> {
     success: bool,
     data: T,
     message: Option<String>,
+}
+
+/// Struct to represent cache statistics.
+#[derive(Serialize)]
+struct CacheStats {
+    cache_hit: u32,
+    cache_miss: u32,
+    hit_rate: f32,
 }
 
 /// Health check endpoint to verify that the server is running.
@@ -48,14 +60,29 @@ async fn get_articles(articles_data: Data<Articles>) -> impl Responder {
 
 /// Retrieves a specific article by ID.
 #[get("/api/v1/articles/{id}")]
-async fn get_article(articles_data: Data<Articles>, path: Path<ArticleId>) -> impl Responder {
+async fn get_article(
+    articles_data: Data<Articles>,
+    cache_recorder: Data<Mutex<CacheHit>>,
+    path: Path<ArticleId>,
+) -> impl Responder {
     let article_id = path.into_inner();
     match articles_data.get_article(article_id) {
-        Ok(article) => HttpResponse::Ok().json(ApiResponse {
-            success: true,
-            data: article,
-            message: None,
-        }),
+        Ok((article, cache)) => {
+            // Record cache hit or miss
+            {
+                let mut recorder = cache_recorder.lock().unwrap();
+                if cache == Cached::Yes {
+                    recorder.hit();
+                } else {
+                    recorder.miss();
+                }
+            }
+            HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                data: article,
+                message: None,
+            })
+        }
         Err(e) => {
             warn!("Article ID {} not found: {:?}", article_id, e);
             HttpResponse::NotFound().json(ApiResponse::<()> {
@@ -143,14 +170,42 @@ async fn refresh_index(articles_data: Data<Articles>) -> impl Responder {
     }
 }
 
+/// Retrieves cache statistics.
+#[get("/api/v1/admin/cache/stats")]
+async fn get_cache_stats(cache_recorder: Data<Mutex<CacheHit>>) -> impl Responder {
+    let stats = cache_recorder.lock().unwrap();
+    let cache_stats = CacheStats {
+        cache_hit: stats.cache_hit,
+        cache_miss: stats.cache_miss,
+        hit_rate: stats.hit_rate(),
+    };
+    HttpResponse::Ok().json(ApiResponse {
+        success: true,
+        data: cache_stats,
+        message: None,
+    })
+}
+
+/// Resets cache statistics.
+#[post("/api/v1/admin/cache/stats/reset")]
+async fn reset_cache_stats(cache_recorder: Data<Mutex<CacheHit>>) -> impl Responder {
+    cache_recorder.lock().unwrap().reset();
+    HttpResponse::Ok().json(ApiResponse::<()> {
+        success: true,
+        data: (),
+        message: Some("Cache statistics have been reset".into()),
+    })
+}
+
 /// Configures the API v1 routes.
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg
-        .service(health_check)
+    cfg.service(health_check)
         .service(get_articles)
         .service(get_article)
         .service(get_articles_by_tag)
         .service(refresh_article_cache)
         .service(clear_cache)
-        .service(refresh_index);
+        .service(refresh_index)
+        .service(get_cache_stats)
+        .service(reset_cache_stats);
 }

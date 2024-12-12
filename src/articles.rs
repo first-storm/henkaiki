@@ -1,5 +1,5 @@
-use crate::config;
 use crate::markdown::MarkdownConverter;
+use crate::config;
 use anyhow::{Result, bail};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
@@ -93,6 +93,12 @@ pub struct Articles {
     index: Arc<ArticleIndex>,
 }
 
+#[derive(PartialEq)]
+pub enum Cached {
+    Yes,
+    No,
+}
+
 impl Clone for Articles {
     fn clone(&self) -> Self {
         Articles {
@@ -118,7 +124,7 @@ lazy_static! {
 }
 
 /// Articles management structure that handles article storage, caching, and retrieval
-/// 
+///
 /// # Structure
 /// - `source_dir`: Directory containing article files
 /// - `cache`: LRU cache for storing parsed articles
@@ -274,14 +280,14 @@ impl Articles {
         Ok(summaries)
     }
 
-    pub fn get_article(&self, article_id: ArticleId) -> Result<Article> {
+    pub fn get_article(&self, article_id: ArticleId) -> Result<(Article, Cached)> {
         if article_id == 0 && config::CONFIG.mainconfig.sample_article {
-            return Ok(SAMPLE_ARTICLE.clone());
+            return Ok((SAMPLE_ARTICLE.clone(), Cached::No));
         }
         {
             let mut cache = self.cache.lock().unwrap();
             if let Some(article) = cache.get(&article_id) {
-                return Ok(article.clone());
+                return Ok((article.clone(), Cached::Yes));
             }
         }
 
@@ -290,7 +296,7 @@ impl Articles {
             let mut cache = self.cache.lock().unwrap();
             cache.put(article_id, article.clone());
         }
-        Ok(article)
+        Ok((article, Cached::No))
     }
 
     pub fn refresh_article(&self, article_id: ArticleId) -> Result<Article> {

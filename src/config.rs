@@ -43,6 +43,12 @@ pub struct Main {
     pub address: String,  // Server address to bind to
     #[serde(default = "default_port")]
     pub port: u16,  // Port number for the server
+    #[serde(default = "default_record_cache_stats")]
+    pub record_cache_stats: bool,  // Whether to record cache hit rate statistics
+}
+
+fn default_record_cache_stats() -> bool {
+    false  // Default to not recording cache statistics
 }
 
 fn default_sample_article() -> bool {

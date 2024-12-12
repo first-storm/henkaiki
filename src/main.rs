@@ -6,9 +6,12 @@ use std::sync::{Arc, Mutex};
 mod api;
 mod articles;
 mod config;
+mod cache_recorder;
 mod markdown;
 
 use articles::Articles;
+
+use cache_recorder::CacheHit;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -30,15 +33,16 @@ async fn main() -> std::io::Result<()> {
         Arc::clone(&cache),
     );
 
+    // Construct shared cache recorder
+    let cache_recorder = web::Data::new(Mutex::new(CacheHit::new()));
+
     // Start the HTTP server
     HttpServer::new(move || {
         App::new()
-            // Add middleware
             .wrap(middleware::Logger::default())
-            // Share the Articles instance with handlers
             .app_data(web::Data::new(articles_instance.clone()))
-            // Define routes
-            .configure(api::v1::config) // Configure API routes
+            .app_data(cache_recorder.clone())
+            .configure(api::v1::config)
     })
     .bind((
         config.mainconfig.address.clone(),

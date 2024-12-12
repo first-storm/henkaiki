@@ -13,6 +13,8 @@ This document provides detailed information about the API endpoints, input and o
   - `/api/v1/admin/articles/{id}/refresh`
   - `/api/v1/admin/cache/clear`
   - `/api/v1/admin/index/refresh`
+  - `/api/v1/admin/cache/stats`
+  - `/api/v1/admin/cache/stats/reset`
 
 ---
 
@@ -315,6 +317,80 @@ Refresh the server's article index. This reloads the index of articles from the 
 
 ---
 
+### 8. Get Cache Statistics (Admin)
+
+Retrieve statistics about cache usage, including cache hits, misses, and hit rate.
+
+- **Endpoint**
+
+  ```
+  GET /api/v1/admin/cache/stats
+  ```
+
+- **Responses**
+
+  - **200 OK**: Cache statistics are returned.
+    - **Body**: [ApiResponse](#apiresponse-object) containing a [CacheStats](#cachestats-object) object.
+  - **500 Internal Server Error**: Failed to retrieve cache statistics.
+    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
+
+- **Example Request**
+
+  ```
+  GET /api/v1/admin/cache/stats
+  ```
+
+- **Example Response**
+
+  ```json
+  {
+    "success": true,
+    "data": {
+      "cache_hit": 150,
+      "cache_miss": 50,
+      "hit_rate": 75.0
+    },
+    "message": null
+  }
+  ```
+
+---
+
+### 9. Reset Cache Statistics (Admin)
+
+Reset the cache statistics counters for cache hits and misses.
+
+- **Endpoint**
+
+  ```
+  POST /api/v1/admin/cache/stats/reset
+  ```
+
+- **Responses**
+
+  - **200 OK**: Cache statistics have been reset.
+    - **Body**: [ApiResponse](#apiresponse-object) with a success message.
+  - **500 Internal Server Error**: Failed to reset cache statistics.
+    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
+
+- **Example Request**
+
+  ```
+  POST /api/v1/admin/cache/stats/reset
+  ```
+
+- **Example Response**
+
+  ```json
+  {
+    "success": true,
+    "data": null,
+    "message": "Cache statistics have been reset"
+  }
+  ```
+
+---
+
 ## Data Models
 
 ### ApiResponse Object
@@ -382,9 +458,27 @@ Represents a summary of an article without the full content.
   - `tags` (array of strings): List of tags associated with the article.
   - `keywords` (array of strings): List of keywords for the article.
 
+### CacheStats Object
+
+Represents statistics about cache usage.
+
+```json
+{
+  "cache_hit": 150,
+  "cache_miss": 50,
+  "hit_rate": 75.0
+}
+```
+
+- **Fields**
+  - `cache_hit` (integer): Number of cache hits.
+  - `cache_miss` (integer): Number of cache misses.
+  - `hit_rate` (float): Percentage of cache hits out of total cache requests.
+
 ---
 
 ## Notes
 
-- **New Field Added**: Articles and summaries now include a `keywords` field.
+- **New Fields Added**: Articles and summaries now include a `keywords` field.
 - **Sample Article**: If the configuration includes the sample article, ID `0` is reserved for it.
+- **Cache Statistics Endpoints**: New administrative endpoints have been added to monitor and manage cache performance.
