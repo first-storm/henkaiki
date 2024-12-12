@@ -24,6 +24,7 @@ pub struct Article {
     pub content: Arc<str>,
     pub date: u32,
     pub tags: Arc<[String]>,
+    pub keywords: Arc<[String]>, // NEW FIELD
 }
 
 // Custom serialization for Article to handle Arc types
@@ -33,13 +34,14 @@ impl Serialize for Article {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("Article", 6)?;
+        let mut state = serializer.serialize_struct("Article", 7)?;
         state.serialize_field("id", &self.id)?;
         state.serialize_field("title", self.title.as_ref())?;
         state.serialize_field("description", self.description.as_ref())?;
         state.serialize_field("content", self.content.as_ref())?;
         state.serialize_field("date", &self.date)?;
         state.serialize_field("tags", self.tags.as_ref())?;
+        state.serialize_field("keywords", self.keywords.as_ref())?; // SERIALIZE NEW FIELD
         state.end()
     }
 }
@@ -52,6 +54,7 @@ pub struct ArticleSummary {
     pub description: Arc<str>,
     pub date: u32,
     pub tags: Arc<[String]>,
+    pub keywords: Arc<[String]>, // NEW FIELD
 }
 
 // Custom serialization for ArticleSummary to handle Arc types
@@ -61,25 +64,27 @@ impl Serialize for ArticleSummary {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("ArticleSummary", 5)?;
+        let mut state = serializer.serialize_struct("ArticleSummary", 6)?;
         state.serialize_field("id", &self.id)?;
         state.serialize_field("title", self.title.as_ref())?;
         state.serialize_field("description", self.description.as_ref())?;
         state.serialize_field("date", &self.date)?;
         state.serialize_field("tags", self.tags.as_ref())?;
+        state.serialize_field("keywords", self.keywords.as_ref())?; // SERIALIZE NEW FIELD
         state.end()
     }
 }
 
 /// Helper struct to represent the metainfo.toml contents.
 #[derive(Clone)]
-struct Metainfo {
+pub struct Metainfo {
     id: i32,
     title: Arc<str>,
     description: Arc<str>,
     markdown_path: Arc<str>,
     date: u32,
     tags: Arc<[String]>,
+    keywords: Arc<[String]>, // NEW FIELD
 }
 
 /// Structure representing the article index with inverted indices.
@@ -110,10 +115,11 @@ lazy_static! {
     static ref SAMPLE_ARTICLE: Article = Article {
         id: 0,
         title: "Universal Declaration of Human Rights".into(),
-        description: "The Universal Declaration of Human Rights is a seminal document adopted by the United Nations General Assembly on December 10, 1948. This article provides a brief overview of its historical significance, outlining its role in establishing a universal framework for protecting fundamental human rights and freedoms worldwide.".into(),
+        description: "The Universal Declaration of Human Rights is a seminal document ...".into(),
         content: include_str!("udhr.md").to_html_with_config(&config::CONFIG).into(),
         date: 19481210,
         tags: vec!["Politics".to_string(), "History".to_string()].into(),
+        keywords: vec!["human rights".to_string(), "united nations".to_string()].into(), // SAMPLE KEYWORDS
     };
 }
 
@@ -169,6 +175,7 @@ impl Articles {
                 markdown_path: "udhr.md".into(),
                 date: SAMPLE_ARTICLE.date,
                 tags: SAMPLE_ARTICLE.tags.clone().into(),
+                keywords: SAMPLE_ARTICLE.keywords.clone().into(),
             };
             self.index
                 .by_id
@@ -273,6 +280,7 @@ impl Articles {
                     description: Arc::clone(&metainfo.description),
                     date: metainfo.date,
                     tags: Arc::clone(&metainfo.tags),
+                    keywords: Arc::clone(&metainfo.keywords),
                 }
             })
             .collect();
@@ -306,6 +314,7 @@ impl Articles {
                     description: Arc::clone(&metainfo.description),
                     date: metainfo.date,
                     tags: Arc::clone(&metainfo.tags),
+                    keywords: Arc::clone(&metainfo.keywords),
                 });
             }
         }
@@ -427,6 +436,7 @@ impl Articles {
             content: html_content.into(),
             date: metainfo.date,
             tags: Arc::clone(&metainfo.tags),
+            keywords: Arc::clone(&metainfo.keywords),
         })
     }
 
@@ -465,6 +475,19 @@ impl Articles {
             })
             .collect::<Result<Vec<String>>>()?;
 
+        // Parse keywords as an array of strings (NEW)
+        let keywords = article_section
+            .get("keywords")
+            .and_then(|v| v.as_array())
+            .context("Missing or invalid 'keywords' in metainfo.toml")?
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| anyhow::anyhow!("Invalid keyword in 'keywords'"))
+            })
+            .collect::<Result<Vec<String>>>()?;
+
         Ok(Metainfo {
             id: article_section
                 .get("id")
@@ -490,6 +513,7 @@ impl Articles {
                 .and_then(|v| v.as_integer())
                 .context("Missing or invalid 'date' in metainfo.toml")? as u32,
             tags: tags.into(),
+            keywords: keywords.into(), // NEW FIELD
         })
     }
 
