@@ -6,14 +6,14 @@ use log::{error, info, warn};
 use lru::LruCache;
 use serde::Serialize;
 use std::{
-    collections::HashMap,
     fs::{self, File},
     io::Read,
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
+use dashmap::DashMap;
 
-type ArticleId = i32;
+pub type ArticleId = i32;
 
 /// Represents an article with its metadata and content.
 #[derive(Clone)]
@@ -72,6 +72,7 @@ impl Serialize for ArticleSummary {
 }
 
 /// Helper struct to represent the metainfo.toml contents.
+#[derive(Clone)]
 struct Metainfo {
     id: i32,
     title: Arc<str>,
@@ -81,11 +82,17 @@ struct Metainfo {
     tags: Arc<[String]>,
 }
 
+/// Structure representing the article index with inverted indices.
+pub struct ArticleIndex {
+    pub by_id: DashMap<ArticleId, Metainfo>,
+    pub by_tag: DashMap<String, Vec<ArticleId>>,
+}
+
 /// Manages articles with indexing, caching, and filesystem integration.
 pub struct Articles {
     source_dir: PathBuf,
     cache: Arc<Mutex<LruCache<ArticleId, Article>>>,
-    index: Arc<RwLock<HashMap<ArticleId, Metainfo>>>,
+    index: Arc<ArticleIndex>,
 }
 
 impl Clone for Articles {
@@ -129,7 +136,11 @@ impl Articles {
             source_dir
         );
 
-        let index = Arc::new(RwLock::new(HashMap::new()));
+        let index = Arc::new(ArticleIndex {
+            by_id: DashMap::new(),
+            by_tag: DashMap::new(),
+        });
+
         let articles = Articles {
             source_dir,
             cache,
@@ -146,7 +157,8 @@ impl Articles {
 
     /// Loads the article index from the filesystem, including all metainfo.
     pub fn load_index(&self) -> Result<()> {
-        let mut new_index = HashMap::new();
+        self.index.by_id.clear();
+        self.index.by_tag.clear();
 
         // Include the sample article if the flag is set
         if config::CONFIG.mainconfig.sample_article {
@@ -158,7 +170,18 @@ impl Articles {
                 date: SAMPLE_ARTICLE.date,
                 tags: SAMPLE_ARTICLE.tags.clone().into(),
             };
-            new_index.insert(SAMPLE_ARTICLE.id, sample_metainfo);
+            self.index
+                .by_id
+                .insert(SAMPLE_ARTICLE.id, sample_metainfo.clone());
+
+            // Update by_tag
+            for tag in &*sample_metainfo.tags {
+                self.index
+                    .by_tag
+                    .entry(tag.clone())
+                    .or_insert_with(Vec::new)
+                    .push(SAMPLE_ARTICLE.id);
+            }
         }
 
         // Collect all valid article directories and their IDs
@@ -187,7 +210,10 @@ impl Articles {
             };
             let metainfo_path = path.join("metainfo.toml");
             if !metainfo_path.is_file() {
-                warn!("Metainfo file missing for article ID {} in path {:?}", article_id, metainfo_path);
+                warn!(
+                    "Metainfo file missing for article ID {} in path {:?}",
+                    article_id, metainfo_path
+                );
                 continue;
             }
             match Self::read_metainfo(&metainfo_path) {
@@ -199,8 +225,17 @@ impl Articles {
                         );
                         continue;
                     }
-                    new_index.insert(article_id, metainfo);
-                },
+                    self.index.by_id.insert(article_id, metainfo.clone());
+
+                    // Update by_tag
+                    for tag in &*metainfo.tags {
+                        self.index
+                            .by_tag
+                            .entry(tag.clone())
+                            .or_insert_with(Vec::new)
+                            .push(article_id);
+                    }
+                }
                 Err(e) => {
                     warn!("Failed to read metainfo for article ID {}: {}", article_id, e);
                     continue;
@@ -208,9 +243,10 @@ impl Articles {
             }
         }
 
-        let mut index = self.index.write().unwrap();
-        *index = new_index;
-        info!("Article index loaded with {} entries.", index.len());
+        info!(
+            "Article index loaded with {} entries.",
+            self.index.by_id.len()
+        );
         Ok(())
     }
 
@@ -225,17 +261,54 @@ impl Articles {
     ///
     /// Returns a vector of ArticleSummary.
     pub fn get_all_articles_without_content(&self) -> Result<Vec<ArticleSummary>> {
-        let index = self.index.read().unwrap();
-        let mut summaries: Vec<ArticleSummary> = index
-            .values()
-            .map(|metainfo| ArticleSummary {
-                id: metainfo.id,
-                title: Arc::clone(&metainfo.title),
-                description: Arc::clone(&metainfo.description),
-                date: metainfo.date,
-                tags: Arc::clone(&metainfo.tags),
+        let mut summaries: Vec<ArticleSummary> = self
+            .index
+            .by_id
+            .iter()
+            .map(|entry| {
+                let metainfo = entry.value();
+                ArticleSummary {
+                    id: metainfo.id,
+                    title: Arc::clone(&metainfo.title),
+                    description: Arc::clone(&metainfo.description),
+                    date: metainfo.date,
+                    tags: Arc::clone(&metainfo.tags),
+                }
             })
             .collect();
+
+        summaries.sort_by_key(|s| s.id);
+        Ok(summaries)
+    }
+
+    /// Retrieves a summary of articles by a specific tag without their content.
+    ///
+    /// # Arguments
+    ///
+    /// * tag - The tag to filter articles by.
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of ArticleSummary.
+    pub fn get_articles_by_tag(&self, tag: &str) -> Result<Vec<ArticleSummary>> {
+        let article_ids = match self.index.by_tag.get(tag) {
+            Some(entry) => entry.value().clone(),
+            None => Vec::new(),
+        };
+
+        let mut summaries = Vec::new();
+        for article_id in article_ids {
+            if let Some(metainfo) = self.index.by_id.get(&article_id) {
+                let metainfo = metainfo.value();
+                summaries.push(ArticleSummary {
+                    id: metainfo.id,
+                    title: Arc::clone(&metainfo.title),
+                    description: Arc::clone(&metainfo.description),
+                    date: metainfo.date,
+                    tags: Arc::clone(&metainfo.tags),
+                });
+            }
+        }
 
         summaries.sort_by_key(|s| s.id);
         Ok(summaries)
@@ -318,9 +391,8 @@ impl Articles {
     /// Returns the loaded Article.
     fn load_article_from_fs(&self, article_id: ArticleId) -> Result<Article> {
         // Retrieve the metainfo from the index
-        let index = self.index.read().unwrap();
-        let metainfo = match index.get(&article_id) {
-            Some(metainfo) => metainfo,
+        let metainfo = match self.index.by_id.get(&article_id) {
+            Some(entry) => entry.value().clone(),
             None => anyhow::bail!("Article ID {} not found in index.", article_id),
         };
 
