@@ -60,7 +60,7 @@ async fn refresh_article_handler(
 /// Handler to refresh the article index.
 #[put("")]
 async fn refresh_index_handler(articles_data: web::Data<Articles>) -> impl Responder {
-    match articles_data.refresh_index() {
+    match articles_data.load_index() {
         Ok(_) => HttpResponse::Ok().body("Index refreshed"),
         Err(e) => {
             error!("Error refreshing index: {:?}", e);

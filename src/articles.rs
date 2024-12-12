@@ -16,34 +16,69 @@ use std::{
 type ArticleId = i32;
 
 /// Represents an article with its metadata and content.
-#[derive(Serialize, Clone)]
+#[derive(Clone)]
 pub struct Article {
     pub id: ArticleId,
-    pub title: String,
-    pub description: String,
-    pub content: String,
+    pub title: Arc<str>,
+    pub description: Arc<str>,
+    pub content: Arc<str>,
     pub date: u32,
-    pub tags: Vec<String>,
+    pub tags: Arc<[String]>,
+}
+
+// Custom serialization for Article to handle Arc types
+impl Serialize for Article {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("Article", 6)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("title", self.title.as_ref())?;
+        state.serialize_field("description", self.description.as_ref())?;
+        state.serialize_field("content", self.content.as_ref())?;
+        state.serialize_field("date", &self.date)?;
+        state.serialize_field("tags", self.tags.as_ref())?;
+        state.end()
+    }
 }
 
 /// Represents an article summary without the content.
-#[derive(Serialize, Clone)]
+#[derive(Clone)]
 pub struct ArticleSummary {
     pub id: ArticleId,
-    pub title: String,
-    pub description: String,
+    pub title: Arc<str>,
+    pub description: Arc<str>,
     pub date: u32,
-    pub tags: Vec<String>,
+    pub tags: Arc<[String]>,
+}
+
+// Custom serialization for ArticleSummary to handle Arc types
+impl Serialize for ArticleSummary {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("ArticleSummary", 5)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("title", self.title.as_ref())?;
+        state.serialize_field("description", self.description.as_ref())?;
+        state.serialize_field("date", &self.date)?;
+        state.serialize_field("tags", self.tags.as_ref())?;
+        state.end()
+    }
 }
 
 /// Helper struct to represent the metainfo.toml contents.
 struct Metainfo {
     id: i32,
-    title: String,
-    description: String,
-    markdown_path: String,
+    title: Arc<str>,
+    description: Arc<str>,
+    markdown_path: Arc<str>,
     date: u32,
-    tags: Vec<String>,
+    tags: Arc<[String]>,
 }
 
 /// Manages articles with indexing, caching, and filesystem integration.
@@ -67,11 +102,11 @@ impl Clone for Articles {
 lazy_static! {
     static ref SAMPLE_ARTICLE: Article = Article {
         id: 0,
-        title: "Universal Declaration of Human Rights".to_string(),
-        description: "The Universal Declaration of Human Rights is a seminal document adopted by the United Nations General Assembly on December 10, 1948. This article provides a brief overview of its historical significance, outlining its role in establishing a universal framework for protecting fundamental human rights and freedoms worldwide.".to_string(),
-        content: include_str!("udhr.md").to_html_with_config(&config::CONFIG),
+        title: "Universal Declaration of Human Rights".into(),
+        description: "The Universal Declaration of Human Rights is a seminal document adopted by the United Nations General Assembly on December 10, 1948. This article provides a brief overview of its historical significance, outlining its role in establishing a universal framework for protecting fundamental human rights and freedoms worldwide.".into(),
+        content: include_str!("udhr.md").to_html_with_config(&config::CONFIG).into(),
         date: 19481210,
-        tags: vec!["Politics".to_string(),"History".to_string()],
+        tags: vec!["Politics".to_string(), "History".to_string()].into(),
     };
 }
 
@@ -117,11 +152,11 @@ impl Articles {
         if config::CONFIG.mainconfig.sample_article {
             let sample_metainfo = Metainfo {
                 id: SAMPLE_ARTICLE.id,
-                title: SAMPLE_ARTICLE.title.clone(),
-                description: SAMPLE_ARTICLE.description.clone(),
-                markdown_path: "udhr.md".to_string(),
+                title: SAMPLE_ARTICLE.title.clone().into(),
+                description: SAMPLE_ARTICLE.description.clone().into(),
+                markdown_path: "udhr.md".into(),
                 date: SAMPLE_ARTICLE.date,
-                tags: SAMPLE_ARTICLE.tags.clone(),
+                tags: SAMPLE_ARTICLE.tags.clone().into(),
             };
             new_index.insert(SAMPLE_ARTICLE.id, sample_metainfo);
         }
@@ -191,19 +226,18 @@ impl Articles {
     /// Returns a vector of ArticleSummary.
     pub fn get_all_articles_without_content(&self) -> Result<Vec<ArticleSummary>> {
         let index = self.index.read().unwrap();
-        let mut summaries: Vec<ArticleSummary> = index.values()
+        let mut summaries: Vec<ArticleSummary> = index
+            .values()
             .map(|metainfo| ArticleSummary {
                 id: metainfo.id,
-                title: metainfo.title.clone(),
-                description: metainfo.description.clone(),
+                title: Arc::clone(&metainfo.title),
+                description: Arc::clone(&metainfo.description),
                 date: metainfo.date,
-                tags: metainfo.tags.clone(),
+                tags: Arc::clone(&metainfo.tags),
             })
             .collect();
 
-        // Sort summaries by article ID
         summaries.sort_by_key(|s| s.id);
-
         Ok(summaries)
     }
 
@@ -287,10 +321,7 @@ impl Articles {
         let index = self.index.read().unwrap();
         let metainfo = match index.get(&article_id) {
             Some(metainfo) => metainfo,
-            None => {
-                warn!("Article ID {} not found in index.", article_id);
-                anyhow::bail!("Article ID {} not found in index.", article_id);
-            }
+            None => anyhow::bail!("Article ID {} not found in index.", article_id),
         };
 
         // Special handling for sample article
@@ -299,29 +330,12 @@ impl Articles {
         }
 
         let article_dir = self.source_dir.join(article_id.to_string());
-
-        // Validate the existence of the article directory
         if !article_dir.exists() || !article_dir.is_dir() {
-            warn!(
-                "Article directory not found for ID {}: {:?}",
-                article_id, article_dir
-            );
             anyhow::bail!("Article directory not found for ID {}", article_id);
         }
 
-        let metainfo_path = article_dir.join("metainfo.toml");
-        if !metainfo_path.is_file() {
-            error!("Metainfo file missing for article ID {}.", article_id);
-            anyhow::bail!("Metainfo file missing for article ID {}", article_id);
-        }
-
-        // Read the markdown file path from metainfo
-        let md_file_path = article_dir.join(&metainfo.markdown_path);
+        let md_file_path = article_dir.join(&*metainfo.markdown_path);
         if !md_file_path.is_file() {
-            error!(
-                "Markdown file missing for article ID {}: {:?}",
-                article_id, md_file_path
-            );
             anyhow::bail!(
                 "Markdown file missing for article ID {}: {:?}",
                 article_id,
@@ -329,24 +343,18 @@ impl Articles {
             );
         }
 
-        // Read the markdown content
-        let markdown_content = Self::read_file_to_string(&md_file_path).with_context(|| {
-            format!(
-                "Failed to read markdown content for article ID {}",
-                article_id
-            )
-        })?;
-
-        // Convert markdown to HTML
+        // Read and convert the markdown content
+        let markdown_content = Self::read_file_to_string(&md_file_path)
+            .with_context(|| format!("Failed to read markdown content for article ID {}", article_id))?;
         let html_content = markdown_content.to_html_with_config(&config::CONFIG);
 
         Ok(Article {
             id: metainfo.id,
-            title: metainfo.title.clone(),
-            description: metainfo.description.clone(),
-            content: html_content,
+            title: Arc::clone(&metainfo.title),
+            description: Arc::clone(&metainfo.description),
+            content: html_content.into(),
             date: metainfo.date,
-            tags: metainfo.tags.clone(),
+            tags: Arc::clone(&metainfo.tags),
         })
     }
 
@@ -394,22 +402,22 @@ impl Articles {
                 .get("title")
                 .and_then(|v| v.as_str())
                 .context("Missing or invalid 'title' in metainfo.toml")?
-                .to_string(),
+                .into(),
             description: article_section
                 .get("description")
                 .and_then(|v| v.as_str())
                 .context("Missing or invalid 'description' in metainfo.toml")?
-                .to_string(),
+                .into(),
             markdown_path: article_section
                 .get("markdown_path")
                 .and_then(|v| v.as_str())
                 .context("Missing or invalid 'markdown_path' in metainfo.toml")?
-                .to_string(),
+                .into(),
             date: article_section
                 .get("date")
                 .and_then(|v| v.as_integer())
                 .context("Missing or invalid 'date' in metainfo.toml")? as u32,
-            tags,
+            tags: tags.into(),
         })
     }
 
