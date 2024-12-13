@@ -25,7 +25,6 @@ This project is the backend for a blog system, providing API endpoints for manag
   - `/api/v1/articles`: Get a list of all available articles without content
   - `/api/v1/articles/{id}`: Retrieve a specific article by its ID
   - `/api/v1/tags/{tag}/articles`: Get all articles associated with a specific tag
-  - `/api/v1/keywords/{keyword}/articles`: Get all articles associated with a specific keyword (NEW)
   - `/api/v1/admin/articles/{id}/refresh`: Force refresh the cache for a specific article
   - `/api/v1/admin/cache/clear`: Clear the entire article cache
   - `/api/v1/admin/index/refresh`: Rebuild the article index from the filesystem
