@@ -1,6 +1,6 @@
 # API Documentation
 
-This document provides detailed information about the API endpoints, input and output formats, and how to use these APIs to interact with the article management system.
+This document provides detailed information about the API endpoints, input and output formats, and how to use these APIs to interact with the article management system. This is v1 version of API, and it is already frozen. New features will arrive in v2 API.
 
 ## Overview
 

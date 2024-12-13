@@ -5,38 +5,12 @@ use actix_web::{
     web::{self, Data, Path},
 };
 use log::*;
-use serde::Serialize;
 
 use crate::{
+    api::ApiResponse,
     articles::{ArticleId, Articles, Cached},
-    cache_recorder::CacheHit,
+    cache_recorder::{CacheHit, CacheStats},
 };
-
-/// A generic API response structure for consistent JSON responses.
-#[derive(Serialize)]
-struct ApiResponse<T> {
-    success: bool,
-    data: T,
-    message: Option<String>,
-}
-
-/// Struct to represent cache statistics.
-#[derive(Serialize)]
-struct CacheStats {
-    cache_hit: u32,
-    cache_miss: u32,
-    hit_rate: f32,
-}
-
-/// Health check endpoint to verify that the server is running.
-#[get("/health")]
-async fn health_check() -> impl Responder {
-    HttpResponse::Ok().json(ApiResponse {
-        success: true,
-        data: "Server is running",
-        message: None,
-    })
-}
 
 /// Retrieves a list of all articles without their content.
 #[get("/api/v1/articles")]
@@ -199,8 +173,7 @@ async fn reset_cache_stats(cache_recorder: Data<Mutex<CacheHit>>) -> impl Respon
 
 /// Configures the API v1 routes.
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(health_check)
-        .service(get_articles)
+    cfg.service(get_articles)
         .service(get_article)
         .service(get_articles_by_tag)
         .service(refresh_article_cache)

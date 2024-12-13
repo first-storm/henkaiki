@@ -6,6 +6,15 @@ pub struct CacheHit {
     pub cache_miss: u32,
 }
 
+
+/// Struct to represent cache statistics.
+#[derive(serde::Serialize)]
+pub struct CacheStats {
+    pub cache_hit: u32,
+    pub cache_miss: u32,
+    pub hit_rate: f32,
+}
+
 impl CacheHit {
     // Constrcut a new CacheHit instance
     pub fn new() -> Self {

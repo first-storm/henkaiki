@@ -1,17 +1,27 @@
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::{App, HttpResponse, HttpServer, get, middleware, web};
 use log::*;
 use lru::LruCache;
 use std::sync::{Arc, Mutex};
 
 mod api;
 mod articles;
-mod config;
 mod cache_recorder;
+mod config;
 mod markdown;
 
 use articles::Articles;
 
 use cache_recorder::CacheHit;
+
+/// Health check endpoint to verify that the server is running.
+#[get("/health")]
+async fn health_check() -> impl actix_web::Responder {
+    HttpResponse::Ok().json(api::ApiResponse {
+        success: true,
+        data: "Server is running",
+        message: None,
+    })
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -42,12 +52,10 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             .app_data(web::Data::new(articles_instance.clone()))
             .app_data(cache_recorder.clone())
+            .service(health_check)
             .configure(api::v1::config)
     })
-    .bind((
-        config.mainconfig.address.clone(),
-        config.mainconfig.port,
-    ))?
+    .bind((config.mainconfig.address.clone(), config.mainconfig.port))?
     .run()
     .await
 }
