@@ -15,6 +15,7 @@ This document serves as a comprehensive guide to configuring the Article Managem
      - [`sample_article`](#sample_article)
      - [`address`](#address)
      - [`port`](#port)
+     - [`record_cache_stats`](#record_cache_stats)
    - [Markdown Extensions](#markdown-extensions)
      - [`strikethrough`](#strikethrough)
      - [`table`](#table)
@@ -29,6 +30,8 @@ This document serves as a comprehensive guide to configuring the Article Managem
      - [`wikilinks_title_before_pipe`](#wikilinks_title_before_pipe)
      - [`spoiler`](#spoiler)
      - [`greentext`](#greentext)
+   - [Article Configuration](#article-configuration)
+     - [`articles_per_page`](#articles_per_page)
 4. [Default Values](#default-values)
 5. [How Configuration is Loaded](#how-configuration-is-loaded)
 6. [Examples](#examples)
@@ -56,10 +59,11 @@ The configuration file is named `config.toml` and should be located in the curre
 
 ## Configuration Parameters
 
-The configuration file uses the [TOML](https://toml.io/en/) format and consists of two main sections:
+The configuration file uses the [TOML](https://toml.io/en/) format and consists of three main sections:
 
 - `[mainconfig]`: General settings for the application.
 - `[extensions]`: Settings for Markdown parsing extensions.
+- `[article]`: Settings specific to article management.
 
 ### Main Configuration
 
@@ -130,7 +134,6 @@ The `[mainconfig]` section contains general settings that affect the application
   ```toml
   record_cache_stats = true
   ```
-
 
 ### Markdown Extensions
 
@@ -281,6 +284,21 @@ Each extension is a boolean value (`true` or `false`). The default for all exten
   greentext = true
   ```
 
+### Article Configuration
+
+The `[article]` section contains settings specific to article management.
+
+#### `articles_per_page`
+
+- **Description**: Specifies the number of articles to display per page.
+- **Type**: Integer
+- **Default**: `10`
+- **Example**:
+
+  ```toml
+  articles_per_page = 15
+  ```
+
 ---
 
 ## Default Values
@@ -298,6 +316,10 @@ If a parameter is not specified in the `config.toml` file, the application uses 
 - **Markdown Extensions**:
 
   All Markdown extensions are enabled by default (`true`).
+
+- **Article Configuration**:
+
+  - `articles_per_page`: `10`
 
 ---
 
@@ -348,6 +370,9 @@ wikilinks_title_after_pipe = true
 wikilinks_title_before_pipe = true
 spoiler = true
 greentext = true
+
+[article]
+articles_per_page = 15
 ```
 
 **Explanation**:
@@ -363,6 +388,10 @@ greentext = true
 - **Markdown Extensions**:
 
   All Markdown extensions are enabled. If you wish to disable an extension, set its value to `false`.
+
+- **Article Configuration**:
+
+  - **articles_per_page**: The application will display `15` articles per page.
 
 ---
 
