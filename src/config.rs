@@ -7,18 +7,20 @@ use std::{env, fs};
 
 lazy_static! {
     pub static ref CONFIG: Arc<Config> = Arc::new(
-        Config::from_file(match env::current_dir() {
-            Ok(mut path) => {
-                path.push("config.toml");
-                if !path.exists() {
-                    panic!("Config file not found at {:?}", path);
+        Config::from_file(
+            match env::current_dir() {
+                Ok(mut path) => {
+                    path.push("config.toml");
+                    if !path.exists() {
+                        panic!("Config file not found at {:?}", path);
+                    }
+                    path.to_str()
+                        .expect("Path contains invalid UTF-8")
+                        .to_string()
                 }
-                path.to_str()
-                    .expect("Path contains invalid UTF-8")
-                    .to_string()
+                Err(_) => panic!("Cannot access current directory"),
             }
-            Err(_) => panic!("Cannot access current directory"),
-        })
+        )
         .expect("Failed to load config file")
     );
 }
@@ -27,37 +29,26 @@ lazy_static! {
 pub struct Config {
     pub extensions: Extensions,
     pub mainconfig: Main,
-    pub article: ArticleConfig,
-}
-
-#[derive(Debug, Deserialize, Default)]
-pub struct ArticleConfig {
-    #[serde(default = "default_articles_per_page")]
-    pub articles_per_page: usize,
-}
-
-fn default_articles_per_page() -> usize {
-    10 // Default value for articles_per_page
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Main {
     #[serde(default = "default_path")]
-    pub articles_dir: String, // Directory where articles are stored
+    pub articles_dir: String,  // Directory where articles are stored
     #[serde(default = "default_max_cached_articles")]
-    pub max_cached_articles: usize, // Maximum number of articles to cache
+    pub max_cached_articles: usize,  // Maximum number of articles to cache
     #[serde(default = "default_sample_article")]
-    pub sample_article: bool, // Flag to include a sample article
+    pub sample_article: bool,  // Flag to include a sample article
     #[serde(default = "default_address")]
-    pub address: String, // Server address to bind to
+    pub address: String,  // Server address to bind to
     #[serde(default = "default_port")]
-    pub port: u16, // Port number for the server
+    pub port: u16,  // Port number for the server
     #[serde(default = "default_record_cache_stats")]
-    pub record_cache_stats: bool, // Whether to record cache hit rate statistics
+    pub record_cache_stats: bool,  // Whether to record cache hit rate statistics
 }
 
 fn default_record_cache_stats() -> bool {
-    false // Default to not recording cache statistics
+    false  // Default to not recording cache statistics
 }
 
 fn default_sample_article() -> bool {
@@ -76,11 +67,11 @@ fn default_max_cached_articles() -> usize {
 }
 
 fn default_address() -> String {
-    "127.0.0.1".to_string() // Default address value
+    "127.0.0.1".to_string()  // Default address value
 }
 
 fn default_port() -> u16 {
-    8080 // Default port value
+    8080  // Default port value
 }
 
 #[derive(Debug, Deserialize)]
@@ -142,7 +133,6 @@ impl Default for Config {
         Self {
             extensions: Extensions::default(),
             mainconfig: Default::default(),
-            article: Default::default(),
         }
     }
 }
