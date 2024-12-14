@@ -1,3 +1,4 @@
+// src/articles.rs
 use crate::markdown::MarkdownConverter;
 use crate::config;
 use anyhow::{Result, bail};
@@ -85,6 +86,7 @@ pub struct Metainfo {
 pub struct ArticleIndex {
     pub by_id: DashMap<ArticleId, Metainfo>,
     pub by_tag: DashMap<String, Vec<ArticleId>>,
+    pub sorted_ids: Arc<Mutex<Vec<ArticleId>>>, // 新增，用于存储排序后的所有文章ID
 }
 
 pub struct Articles {
@@ -94,9 +96,9 @@ pub struct Articles {
 }
 
 #[derive(PartialEq)]
-pub enum Cached {
-    Yes,
-    No,
+pub enum CachedStatus {
+    Cached,
+    NotCached,
 }
 
 impl Clone for Articles {
@@ -124,55 +126,32 @@ lazy_static! {
 }
 
 /// Articles management structure that handles article storage, caching, and retrieval
-///
-/// # Structure
-/// - `source_dir`: Directory containing article files
-/// - `cache`: LRU cache for storing parsed articles
-/// - `index`: Index structure for quick article lookup by ID and tags
-///
-/// # Methods
-/// ## Core Operations
-/// - `new()`: Creates new Articles instance with given source directory and cache
-/// - `load_index()`: Loads/reloads article index from filesystem
-/// - `refresh_index()`: Reloads article index
-/// - `clear_cache()`: Clears the article cache
-///
-/// ## Article Retrieval
-/// - `get_article()`: Gets single article by ID
-/// - `refresh_article()`: Reloads specific article from filesystem
-/// - `get_all_articles_without_content()`: Gets summaries of all articles
-/// - `get_articles_by_tag()`: Gets article summaries filtered by tag
-///
-/// ## Internal Helpers
-/// - `load_article_from_fs()`: Loads article content from filesystem
-/// - `read_metainfo()`: Parses article metadata from TOML
-/// - `read_file_to_string()`: Helper to read file contents
-///
-/// # Error Handling
-/// Methods return `Result` for handling filesystem and parsing errors
-///
-/// # Thread Safety
-/// Uses thread-safe structures (Arc, Mutex, DashMap) for concurrent access
 impl Articles {
+    /// Creates a new `Articles` instance with the specified source directory and cache.
     pub fn new(source_dir: PathBuf, cache: Arc<Mutex<LruCache<ArticleId, Article>>>) -> Self {
-        info!("Articles initialized");
+        info!("Initializing Articles");
         let index = Arc::new(ArticleIndex {
             by_id: DashMap::new(),
             by_tag: DashMap::new(),
+            sorted_ids: Arc::new(Mutex::new(Vec::new())),
         });
         let articles = Articles {
             source_dir,
             cache,
             index: Arc::clone(&index),
         };
-        let _ = articles.load_index();
+        if let Err(e) = articles.load_index() {
+            log::error!("Failed to load index: {}", e);
+        }
         articles
     }
 
+    /// Loads or reloads the article index from the filesystem.
     pub fn load_index(&self) -> Result<()> {
         self.index.by_id.clear();
         self.index.by_tag.clear();
 
+        // Insert sample article if configured
         if config::CONFIG.mainconfig.sample_article {
             let sample_metainfo = Metainfo {
                 id: SAMPLE_ARTICLE.id,
@@ -195,6 +174,7 @@ impl Articles {
             }
         }
 
+        // Iterate through source directory to build the index
         for entry in fs::read_dir(&self.source_dir)? {
             let entry = entry?;
             let path = entry.path();
@@ -213,7 +193,7 @@ impl Articles {
             if !metainfo_path.is_file() {
                 continue;
             }
-            if let Ok(metainfo) = Self::read_metainfo(&metainfo_path) {
+            if let Ok(metainfo) = Self::parse_metainfo(&metainfo_path) {
                 if metainfo.id != article_id {
                     continue;
                 }
@@ -227,14 +207,67 @@ impl Articles {
                 }
             }
         }
+
+        // 对所有文章ID进行排序
+        {
+            let mut all_ids: Vec<ArticleId> = self.index.by_id.iter().map(|e| *e.key()).collect();
+            all_ids.sort_unstable();
+            let mut locked_ids = self.index.sorted_ids.lock().unwrap();
+            *locked_ids = all_ids;
+        }
+
+        // 对每个tag下的文章ID也进行排序
+        for mut entry in self.index.by_tag.iter_mut() {
+            entry.value_mut().sort_unstable();
+        }
+
         Ok(())
     }
 
+    /// Reloads the article index.
     pub fn refresh_index(&self) -> Result<()> {
         self.load_index()
     }
 
-    pub fn get_all_articles_without_content(&self) -> Result<Vec<ArticleSummary>> {
+    /// Clears the article cache.
+    pub fn clear_cache(&self) {
+        let mut cache = self.cache.lock().unwrap();
+        cache.clear();
+    }
+
+    /// Retrieves a single article by its ID.
+    ///
+    /// Returns a tuple containing the `Article` and its `CachedStatus`.
+    pub fn get_article(&self, article_id: ArticleId) -> Result<(Article, CachedStatus)> {
+        if article_id == 0 && config::CONFIG.mainconfig.sample_article {
+            return Ok((SAMPLE_ARTICLE.clone(), CachedStatus::NotCached));
+        }
+
+        {
+            let mut cache = self.cache.lock().unwrap();
+            if let Some(article) = cache.get(&article_id) {
+                return Ok((article.clone(), CachedStatus::Cached));
+            }
+        }
+
+        let article = self.load_article_from_filesystem(article_id)?;
+        {
+            let mut cache = self.cache.lock().unwrap();
+            cache.put(article_id, article.clone());
+        }
+        Ok((article, CachedStatus::NotCached))
+    }
+
+    /// Reloads a specific article from the filesystem and updates the cache.
+    pub fn refresh_article(&self, article_id: ArticleId) -> Result<Article> {
+        let article = self.load_article_from_filesystem(article_id)?;
+        let mut cache = self.cache.lock().unwrap();
+        cache.put(article_id, article.clone());
+        Ok(article)
+    }
+
+    /// Retrieves summaries of all articles.
+    pub fn list_article_summaries(&self) -> Result<Vec<ArticleSummary>> {
         let mut summaries: Vec<_> = self
             .index
             .by_id
@@ -255,7 +288,71 @@ impl Articles {
         Ok(summaries)
     }
 
-    pub fn get_articles_by_tag(&self, tag: &str) -> Result<Vec<ArticleSummary>> {
+    /// Retrieves a paginated list of article summaries using pre-sorted IDs.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_per_page` - Maximum number of articles per page.
+    /// * `page_number` - The page number to retrieve (0-based index).
+    pub fn list_article_summaries_paginated(
+        &self,
+        max_per_page: usize,
+        page_number: usize,
+    ) -> Result<Vec<ArticleSummary>> {
+        let locked_ids = self.index.sorted_ids.lock().unwrap();
+        let total_articles = locked_ids.len();
+
+        if max_per_page == 0 {
+            return Ok(vec![]);
+        }
+
+        let total_pages = (total_articles + max_per_page - 1) / max_per_page;
+
+        if page_number >= total_pages && total_pages != 0 {
+            bail!("Page number out of range");
+        }
+
+        let start = page_number * max_per_page;
+        let end = (start + max_per_page).min(total_articles);
+        let page_ids = &locked_ids[start..end];
+
+        let mut summaries = Vec::with_capacity(page_ids.len());
+        for &id in page_ids {
+            if let Some(m) = self.index.by_id.get(&id) {
+                let m = m.value();
+                summaries.push(ArticleSummary {
+                    id: m.id,
+                    title: Arc::clone(&m.title),
+                    description: Arc::clone(&m.description),
+                    date: m.date,
+                    tags: Arc::clone(&m.tags),
+                    keywords: Arc::clone(&m.keywords),
+                });
+            }
+        }
+        Ok(summaries)
+    }
+
+    /// Retrieves the total number of pages for article summaries.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_per_page` - Maximum number of articles per page.
+    pub fn get_article_summary_page_count(&self, max_per_page: usize) -> usize {
+        let locked_ids = self.index.sorted_ids.lock().unwrap();
+        let total_articles = locked_ids.len();
+        if total_articles == 0 || max_per_page == 0 {
+            return 0;
+        }
+        (total_articles + max_per_page - 1) / max_per_page
+    }
+
+    /// Retrieves article summaries filtered by a specific tag.
+    ///
+    /// # Arguments
+    ///
+    /// * `tag` - The tag to filter articles by.
+    pub fn list_article_summaries_by_tag(&self, tag: &str) -> Result<Vec<ArticleSummary>> {
         let article_ids = self
             .index
             .by_tag
@@ -280,54 +377,100 @@ impl Articles {
         Ok(summaries)
     }
 
-    pub fn get_article(&self, article_id: ArticleId) -> Result<(Article, Cached)> {
-        if article_id == 0 && config::CONFIG.mainconfig.sample_article {
-            return Ok((SAMPLE_ARTICLE.clone(), Cached::No));
+    /// Retrieves a paginated list of article summaries filtered by a specific tag.
+    ///
+    /// # Arguments
+    ///
+    /// * `tag` - The tag to filter articles by.
+    /// * `max_per_page` - Maximum number of articles per page.
+    /// * `page_number` - The page number to retrieve (0-based index).
+    pub fn list_article_summaries_by_tag_paginated(
+        &self,
+        tag: &str,
+        max_per_page: usize,
+        page_number: usize,
+    ) -> Result<Vec<ArticleSummary>> {
+        let article_ids = self
+            .index
+            .by_tag
+            .get(tag)
+            .map(|v| v.clone())
+            .unwrap_or_default();
+
+        let total_articles = article_ids.len();
+        if max_per_page == 0 {
+            return Ok(vec![]);
         }
-        {
-            let mut cache = self.cache.lock().unwrap();
-            if let Some(article) = cache.get(&article_id) {
-                return Ok((article.clone(), Cached::Yes));
+        let total_pages = (total_articles + max_per_page - 1) / max_per_page;
+
+        if page_number >= total_pages && total_pages != 0 {
+            bail!("Page number out of range");
+        }
+
+        let start = page_number * max_per_page;
+        let end = (start + max_per_page).min(total_articles);
+        let page_ids = &article_ids[start..end];
+
+        let mut summaries = Vec::with_capacity(page_ids.len());
+        for &article_id in page_ids {
+            if let Some(m) = self.index.by_id.get(&article_id) {
+                let m = m.value();
+                summaries.push(ArticleSummary {
+                    id: m.id,
+                    title: Arc::clone(&m.title),
+                    description: Arc::clone(&m.description),
+                    date: m.date,
+                    tags: Arc::clone(&m.tags),
+                    keywords: Arc::clone(&m.keywords),
+                });
             }
         }
 
-        let article = self.load_article_from_fs(article_id)?;
-        {
-            let mut cache = self.cache.lock().unwrap();
-            cache.put(article_id, article.clone());
+        Ok(summaries)
+    }
+
+    /// Retrieves the total number of pages for article summaries filtered by a specific tag.
+    ///
+    /// # Arguments
+    ///
+    /// * `tag` - The tag to filter articles by.
+    /// * `max_per_page` - Maximum number of articles per page.
+    pub fn get_article_summary_by_tag_page_count(&self, tag: &str, max_per_page: usize) -> usize {
+        let article_ids = self
+            .index
+            .by_tag
+            .get(tag)
+            .map(|v| v.clone())
+            .unwrap_or_default();
+        if article_ids.is_empty() || max_per_page == 0 {
+            return 0;
         }
-        Ok((article, Cached::No))
+        let total_articles = article_ids.len();
+        (total_articles + max_per_page - 1) / max_per_page
     }
 
-    pub fn refresh_article(&self, article_id: ArticleId) -> Result<Article> {
-        let article = self.load_article_from_fs(article_id)?;
-        let mut cache = self.cache.lock().unwrap();
-        cache.put(article_id, article.clone());
-        Ok(article)
-    }
-
-    pub fn clear_cache(&self) {
-        let mut cache = self.cache.lock().unwrap();
-        cache.clear();
-    }
-
-    fn load_article_from_fs(&self, article_id: ArticleId) -> Result<Article> {
+    /// Loads an article from the filesystem based on its ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `article_id` - The ID of the article to load.
+    fn load_article_from_filesystem(&self, article_id: ArticleId) -> Result<Article> {
         let metainfo = match self.index.by_id.get(&article_id) {
             Some(entry) => entry.value().clone(),
-            None => bail!("Article not found"),
+            None => bail!("Article with ID {} not found", article_id),
         };
         if article_id == 0 && config::CONFIG.mainconfig.sample_article {
             return Ok(SAMPLE_ARTICLE.clone());
         }
         let article_dir = self.source_dir.join(article_id.to_string());
         if !article_dir.exists() || !article_dir.is_dir() {
-            bail!("Article directory not found");
+            bail!("Article directory for ID {} not found", article_id);
         }
         let md_file_path = article_dir.join(&*metainfo.markdown_path);
         if !md_file_path.is_file() {
-            bail!("Markdown file missing");
+            bail!("Markdown file '{}' is missing for article ID {}", metainfo.markdown_path, article_id);
         }
-        let markdown_content = Self::read_file_to_string(&md_file_path)?;
+        let markdown_content = Self::read_file_as_string(&md_file_path)?;
         let html_content = markdown_content.to_html_with_config(&config::CONFIG);
         Ok(Article {
             id: metainfo.id,
@@ -340,7 +483,12 @@ impl Articles {
         })
     }
 
-    fn read_metainfo(path: &PathBuf) -> Result<Metainfo> {
+    /// Parses article metadata from a TOML file.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the `metainfo.toml` file.
+    fn parse_metainfo(path: &PathBuf) -> Result<Metainfo> {
         let mut file = File::open(path)?;
         let mut toml_content = String::new();
         file.read_to_string(&mut toml_content)?;
@@ -348,61 +496,65 @@ impl Articles {
 
         let article_section = parsed
             .get("article")
-            .ok_or_else(|| anyhow::anyhow!("No article section"))?;
-        let tags = article_section
-            .get("tags")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow::anyhow!("No tags"))?
-            .iter()
-            .map(|v| {
-                v.as_str()
-                    .ok_or_else(|| anyhow::anyhow!("Invalid tag"))
-                    .map(|s| s.to_string())
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let keywords = article_section
-            .get("keywords")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow::anyhow!("No keywords"))?
-            .iter()
-            .map(|v| {
-                v.as_str()
-                    .ok_or_else(|| anyhow::anyhow!("Invalid keyword"))
-                    .map(|s| s.to_string())
-            })
-            .collect::<Result<Vec<_>>>()?;
+            .ok_or_else(|| anyhow::anyhow!("No [article] section found in {:?}", path))?;
+        let tags = Self::parse_string_array(article_section, "tags")?;
+        let keywords = Self::parse_string_array(article_section, "keywords")?;
 
         Ok(Metainfo {
             id: article_section
                 .get("id")
                 .and_then(|v| v.as_integer())
-                .ok_or_else(|| anyhow::anyhow!("No id"))? as i32,
+                .ok_or_else(|| anyhow::anyhow!("Missing 'id' in {:?}", path))? as i32,
             title: article_section
                 .get("title")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow::anyhow!("No title"))?
+                .ok_or_else(|| anyhow::anyhow!("Missing 'title' in {:?}", path))?
                 .into(),
             description: article_section
                 .get("description")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow::anyhow!("No desc"))?
+                .ok_or_else(|| anyhow::anyhow!("Missing 'description' in {:?}", path))?
                 .into(),
             markdown_path: article_section
                 .get("markdown_path")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow::anyhow!("No markdown"))?
+                .ok_or_else(|| anyhow::anyhow!("Missing 'markdown_path' in {:?}", path))?
                 .into(),
             date: article_section
                 .get("date")
                 .and_then(|v| v.as_integer())
-                .ok_or_else(|| anyhow::anyhow!("No date"))? as u32,
+                .ok_or_else(|| anyhow::anyhow!("Missing 'date' in {:?}", path))? as u32,
             tags: tags.into(),
             keywords: keywords.into(),
         })
     }
 
-    fn read_file_to_string(path: &PathBuf) -> Result<String> {
+    /// Helper function to parse an array of strings from a TOML section.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - The TOML section to parse.
+    /// * `key` - The key corresponding to the array.
+    fn parse_string_array(section: &toml::Value, key: &str) -> Result<Vec<String>> {
+        section
+            .get(key)
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| anyhow::anyhow!("Missing or invalid '{}' array", key))?
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .ok_or_else(|| anyhow::anyhow!("Invalid string in '{}'", key))
+                    .map(|s| s.to_string())
+            })
+            .collect()
+    }
+
+    /// Reads the contents of a file as a `String`.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the file.
+    fn read_file_as_string(path: &PathBuf) -> Result<String> {
         let mut file = File::open(path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;

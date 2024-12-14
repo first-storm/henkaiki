@@ -1,6 +1,6 @@
 # API Documentation
 
-This document provides detailed information about the API endpoints, input and output formats, and how to use these APIs to interact with the article management system. This is v1 version of API, and it is already frozen. New features will arrive in v2 API.
+This document provides detailed information about the API endpoints, input and output formats, and how to use these APIs to interact with the article management system.
 
 ## Overview
 
@@ -8,13 +8,15 @@ This document provides detailed information about the API endpoints, input and o
 - **Available Endpoints**:
   - `/health`
   - `/api/v1/articles`
+  - `/api/v1/articles/pages`
   - `/api/v1/articles/{id}`
-  - `/api/v1/tags/{tag}/articles`
-  - `/api/v1/admin/articles/{id}/refresh`
-  - `/api/v1/admin/cache/clear`
-  - `/api/v1/admin/index/refresh`
-  - `/api/v1/admin/cache/stats`
-  - `/api/v1/admin/cache/stats/reset`
+  - `/api/v1/articles/index/refresh`
+  - `/api/v1/articles/cache`
+  - `/api/v1/articles/{id}/refresh`
+  - `/api/v1/articles/tags/{tag}`
+  - `/api/v1/articles/tags/{tag}/pages`
+  - `/api/v1/articles/cache/stats`
+  - `/api/v1/articles/cache/stats/reset`
 
 ---
 
@@ -25,34 +27,15 @@ This document provides detailed information about the API endpoints, input and o
 Check the health status of the server.
 
 - **Endpoint**
-
   ```
   GET /health
   ```
 
 - **Responses**
-
   - **200 OK**: The server is running.
     - **Body**: JSON object containing the health status.
 
-- **Response Format**
-
-  ```json
-  {
-    "success": true,
-    "data": "Server is running",
-    "message": null
-  }
-  ```
-
-- **Example Request**
-
-  ```
-  GET /health
-  ```
-
 - **Example Response**
-
   ```json
   {
     "success": true,
@@ -63,31 +46,31 @@ Check the health status of the server.
 
 ---
 
-### 2. Get All Articles
+### 2. Get Articles
 
-Retrieve a list of all articles without their content.
+Retrieve a list of articles with optional pagination.
 
 - **Endpoint**
-
   ```
   GET /api/v1/articles
   ```
+
+- **Query Parameters**
+  - `limit` (optional): Maximum number of articles per page
+  - `page` (optional): Page number (0-based index)
 
 - **Responses**
+  - **200 OK**: A list of article summaries is returned
+  - **400 Bad Request**: Invalid pagination parameters
+  - **500 Internal Server Error**: Failed to retrieve articles
 
-  - **200 OK**: A list of article summaries is returned.
-    - **Body**: [ApiResponse](#apiresponse-object) containing an array of [ArticleSummary](#article-summary-object) objects.
-  - **500 Internal Server Error**: Failed to retrieve articles.
-    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
-
-- **Example Request**
-
+- **Example Requests**
   ```
   GET /api/v1/articles
+  GET /api/v1/articles?limit=10&page=0
   ```
 
 - **Example Response**
-
   ```json
   {
     "success": true,
@@ -99,14 +82,6 @@ Retrieve a list of all articles without their content.
         "date": 20231015,
         "tags": ["sample", "demo"],
         "keywords": ["example", "sample article"]
-      },
-      {
-        "id": 2,
-        "title": "Another Article",
-        "description": "Summary of another article.",
-        "date": 20231016,
-        "tags": ["other"],
-        "keywords": ["demo", "testing"]
       }
     ],
     "message": null
@@ -115,35 +90,54 @@ Retrieve a list of all articles without their content.
 
 ---
 
-### 3. Get Article by ID
+### 3. Get Total Pages
+
+Get the total number of pages for articles.
+
+- **Endpoint**
+  ```
+  GET /api/v1/articles/pages
+  ```
+
+- **Query Parameters**
+  - `limit` (optional): Maximum number of articles per page (default: 10)
+
+- **Responses**
+  - **200 OK**: Returns the total number of pages
+
+- **Example Request**
+  ```
+  GET /api/v1/articles/pages?limit=10
+  ```
+
+- **Example Response**
+  ```json
+  {
+    "success": true,
+    "data": 5,
+    "message": null
+  }
+  ```
+
+---
+
+### 4. Get Article by ID
 
 Retrieve a specific article by its ID.
 
 - **Endpoint**
-
   ```
   GET /api/v1/articles/{id}
   ```
 
 - **Path Parameters**
-
-  - `{id}`: The integer ID of the article to retrieve.
+  - `{id}`: The integer ID of the article to retrieve
 
 - **Responses**
-
-  - **200 OK**: The article was found and returned.
-    - **Body**: [ApiResponse](#apiresponse-object) containing an [Article](#article-object).
-  - **404 Not Found**: The article with the specified ID does not exist.
-    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
-
-- **Example Request**
-
-  ```
-  GET /api/v1/articles/1
-  ```
+  - **200 OK**: The article was found and returned
+  - **404 Not Found**: Article not found
 
 - **Example Response**
-
   ```json
   {
     "success": true,
@@ -162,35 +156,108 @@ Retrieve a specific article by its ID.
 
 ---
 
-### 4. Get Articles by Tag
+### 5. Refresh Index
 
-Retrieve a list of articles associated with a specific tag.
+Refresh the articles index by reloading from the filesystem.
 
 - **Endpoint**
-
   ```
-  GET /api/v1/tags/{tag}/articles
+  POST /api/v1/articles/index/refresh
+  ```
+
+- **Responses**
+  - **200 OK**: Index refreshed successfully
+  - **500 Internal Server Error**: Failed to refresh index
+
+- **Example Response**
+  ```json
+  {
+    "success": true,
+    "data": null,
+    "message": "Index refreshed"
+  }
+  ```
+
+---
+
+### 6. Clear Cache
+
+Clear the articles cache.
+
+- **Endpoint**
+  ```
+  DELETE /api/v1/articles/cache
+  ```
+
+- **Responses**
+  - **200 OK**: Cache cleared successfully
+
+- **Example Response**
+  ```json
+  {
+    "success": true,
+    "data": null,
+    "message": "Cache cleared"
+  }
+  ```
+
+---
+
+### 7. Refresh Article
+
+Refresh a specific article in the cache.
+
+- **Endpoint**
+  ```
+  POST /api/v1/articles/{id}/refresh
   ```
 
 - **Path Parameters**
-
-  - `{tag}`: The tag to filter articles by.
+  - `{id}`: The integer ID of the article to refresh
 
 - **Responses**
+  - **200 OK**: Article refreshed successfully
+  - **500 Internal Server Error**: Failed to refresh article
 
-  - **200 OK**: A list of articles with the specified tag is returned.
-    - **Body**: [ApiResponse](#apiresponse-object) containing an array of [ArticleSummary](#article-summary-object) objects.
-  - **500 Internal Server Error**: Failed to retrieve articles by tag.
-    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
-
-- **Example Request**
-
+- **Example Response**
+  ```json
+  {
+    "success": true,
+    "data": null,
+    "message": "Article refreshed"
+  }
   ```
-  GET /api/v1/tags/sample/articles
+
+---
+
+### 8. Get Articles by Tag
+
+Retrieve articles filtered by a specific tag with optional pagination.
+
+- **Endpoint**
+  ```
+  GET /api/v1/articles/tags/{tag}
+  ```
+
+- **Path Parameters**
+  - `{tag}`: The tag to filter articles by
+
+- **Query Parameters**
+  - `limit` (optional): Maximum number of articles per page
+  - `page` (optional): Page number (0-based index)
+
+- **Responses**
+  - **200 OK**: List of articles with the specified tag
+  - **400 Bad Request**: Invalid pagination parameters
+  - **500 Internal Server Error**: Failed to retrieve articles
+
+- **Example Requests**
+  ```
+  GET /api/v1/articles/tags/sample
+  GET /api/v1/articles/tags/sample?limit=10&page=0
   ```
 
 - **Example Response**
-
   ```json
   {
     "success": true,
@@ -210,138 +277,53 @@ Retrieve a list of articles associated with a specific tag.
 
 ---
 
-### 5. Refresh Article Cache by ID (Admin)
+### 9. Get Tag Pages
 
-Refresh the cache for a specific article by its ID. This reloads the article from the filesystem and updates the cache.
+Get the total number of pages for articles with a specific tag.
 
 - **Endpoint**
-
   ```
-  POST /api/v1/admin/articles/{id}/refresh
+  GET /api/v1/articles/tags/{tag}/pages
   ```
 
 - **Path Parameters**
+  - `{tag}`: The tag to count pages for
 
-  - `{id}`: The integer ID of the article to refresh.
+- **Query Parameters**
+  - `limit` (optional): Maximum number of articles per page (default: 10)
 
 - **Responses**
-
-  - **200 OK**: The article cache was successfully refreshed.
-    - **Body**: [ApiResponse](#apiresponse-object) with a success message.
-  - **500 Internal Server Error**: Failed to refresh the article cache.
-    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
+  - **200 OK**: Returns the total number of pages for the tag
 
 - **Example Request**
-
   ```
-  POST /api/v1/admin/articles/1/refresh
+  GET /api/v1/articles/tags/sample/pages?limit=10
   ```
 
 - **Example Response**
-
   ```json
   {
     "success": true,
-    "data": null,
-    "message": "Article cache refreshed"
+    "data": 3,
+    "message": null
   }
   ```
 
 ---
 
-### 6. Clear Article Cache (Admin)
+### 10. Get Cache Statistics
 
-Clear the server's article cache. This forces the server to reload articles from the filesystem on the next request.
+Retrieve statistics about cache usage.
 
 - **Endpoint**
-
   ```
-  POST /api/v1/admin/cache/clear
+  GET /api/v1/articles/cache/stats
   ```
 
 - **Responses**
-
-  - **200 OK**: The cache was successfully cleared.
-    - **Body**: [ApiResponse](#apiresponse-object) with a success message.
-
-- **Example Request**
-
-  ```
-  POST /api/v1/admin/cache/clear
-  ```
+  - **200 OK**: Cache statistics retrieved successfully
 
 - **Example Response**
-
-  ```json
-  {
-    "success": true,
-    "data": null,
-    "message": "Cache cleared"
-  }
-  ```
-
----
-
-### 7. Refresh Article Index (Admin)
-
-Refresh the server's article index. This reloads the index of articles from the filesystem.
-
-- **Endpoint**
-
-  ```
-  POST /api/v1/admin/index/refresh
-  ```
-
-- **Responses**
-
-  - **200 OK**: The article index was successfully refreshed.
-    - **Body**: [ApiResponse](#apiresponse-object) with a success message.
-  - **500 Internal Server Error**: Failed to refresh the article index.
-    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
-
-- **Example Request**
-
-  ```
-  POST /api/v1/admin/index/refresh
-  ```
-
-- **Example Response**
-
-  ```json
-  {
-    "success": true,
-    "data": null,
-    "message": "Index refreshed"
-  }
-  ```
-
----
-
-### 8. Get Cache Statistics (Admin)
-
-Retrieve statistics about cache usage, including cache hits, misses, and hit rate.
-
-- **Endpoint**
-
-  ```
-  GET /api/v1/admin/cache/stats
-  ```
-
-- **Responses**
-
-  - **200 OK**: Cache statistics are returned.
-    - **Body**: [ApiResponse](#apiresponse-object) containing a [CacheStats](#cachestats-object) object.
-  - **500 Internal Server Error**: Failed to retrieve cache statistics.
-    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
-
-- **Example Request**
-
-  ```
-  GET /api/v1/admin/cache/stats
-  ```
-
-- **Example Response**
-
   ```json
   {
     "success": true,
@@ -356,31 +338,19 @@ Retrieve statistics about cache usage, including cache hits, misses, and hit rat
 
 ---
 
-### 9. Reset Cache Statistics (Admin)
+### 11. Reset Cache Statistics
 
-Reset the cache statistics counters for cache hits and misses.
+Reset the cache statistics counters.
 
 - **Endpoint**
-
   ```
-  POST /api/v1/admin/cache/stats/reset
+  POST /api/v1/articles/cache/stats/reset
   ```
 
 - **Responses**
-
-  - **200 OK**: Cache statistics have been reset.
-    - **Body**: [ApiResponse](#apiresponse-object) with a success message.
-  - **500 Internal Server Error**: Failed to reset cache statistics.
-    - **Body**: [ApiResponse](#apiresponse-object) with an error message.
-
-- **Example Request**
-
-  ```
-  POST /api/v1/admin/cache/stats/reset
-  ```
+  - **200 OK**: Cache statistics reset successfully
 
 - **Example Response**
-
   ```json
   {
     "success": true,
@@ -406,9 +376,9 @@ Generic response object for all API responses.
 ```
 
 - **Fields**
-  - `success` (boolean): Indicates whether the request was successful.
-  - `data` (varies): The data payload. Can be an object, array, or null.
-  - `message` (string|null): Optional message providing additional information.
+  - `success` (boolean): Indicates whether the request was successful
+  - `data` (varies): The data payload. Can be an object, array, or null
+  - `message` (string|null): Optional message providing additional information
 
 ### Article Object
 
@@ -427,13 +397,13 @@ Represents a full article with content.
 ```
 
 - **Fields**
-  - `id` (integer): Unique identifier of the article.
-  - `title` (string): Title of the article.
-  - `description` (string): Brief description of the article.
-  - `content` (string): The HTML content of the article.
-  - `date` (integer): Publication date represented as an integer (e.g., YYYYMMDD).
-  - `tags` (array of strings): List of tags associated with the article.
-  - `keywords` (array of strings): List of keywords for the article.
+  - `id` (integer): Unique identifier of the article
+  - `title` (string): Title of the article
+  - `description` (string): Brief description of the article
+  - `content` (string): The HTML content of the article
+  - `date` (integer): Publication date represented as an integer (YYYYMMDD)
+  - `tags` (array of strings): List of tags associated with the article
+  - `keywords` (array of strings): List of keywords for the article
 
 ### Article Summary Object
 
@@ -451,12 +421,12 @@ Represents a summary of an article without the full content.
 ```
 
 - **Fields**
-  - `id` (integer): Unique identifier of the article.
-  - `title` (string): Title of the article.
-  - `description` (string): Brief description of the article.
-  - `date` (integer): Publication date represented as an integer (e.g., YYYYMMDD).
-  - `tags` (array of strings): List of tags associated with the article.
-  - `keywords` (array of strings): List of keywords for the article.
+  - `id` (integer): Unique identifier of the article
+  - `title` (string): Title of the article
+  - `description` (string): Brief description of the article
+  - `date` (integer): Publication date represented as an integer (YYYYMMDD)
+  - `tags` (array of strings): List of tags associated with the article
+  - `keywords` (array of strings): List of keywords for the article
 
 ### CacheStats Object
 
@@ -471,14 +441,16 @@ Represents statistics about cache usage.
 ```
 
 - **Fields**
-  - `cache_hit` (integer): Number of cache hits.
-  - `cache_miss` (integer): Number of cache misses.
-  - `hit_rate` (float): Percentage of cache hits out of total cache requests.
+  - `cache_hit` (integer): Number of cache hits
+  - `cache_miss` (integer): Number of cache misses
+  - `hit_rate` (float): Percentage of cache hits out of total cache requests
 
 ---
 
 ## Notes
 
-- **New Fields Added**: Articles and summaries now include a `keywords` field.
-- **Sample Article**: If the configuration includes the sample article, ID `0` is reserved for it.
-- **Cache Statistics Endpoints**: New administrative endpoints have been added to monitor and manage cache performance.
+- **Pagination**: Many endpoints support pagination through optional `limit` and `page` query parameters
+- **Sample Article**: If the configuration includes the sample article, ID `0` is reserved for it
+- **Default Page Size**: When using pagination, the default page size is 10 items per page
+- **Page Numbers**: Page numbers are 0-based indices
+- **Cache Management**: Cache-related endpoints are now consolidated under the `/api/v1/articles/cache` path
