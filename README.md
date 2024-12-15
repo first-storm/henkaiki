@@ -21,13 +21,17 @@ This project is the backend for a blog system, providing API endpoints for manag
 
 - **Base URL**: `http://127.0.0.1:8080/api/v1`
 - **Available endpoints** include:
-  - `/health`: Check the service health status
-  - `/api/v1/articles`: Get a list of all available articles without content
-  - `/api/v1/articles/{id}`: Retrieve a specific article by its ID
-  - `/api/v1/tags/{tag}/articles`: Get all articles associated with a specific tag
-  - `/api/v1/admin/articles/{id}/refresh`: Force refresh the cache for a specific article
-  - `/api/v1/admin/cache/clear`: Clear the entire article cache
-  - `/api/v1/admin/index/refresh`: Rebuild the article index from the filesystem
+  - `/health`: Check the health status of the API.
+  - `/api/v1/articles`: Retrieve a list of all articles.
+  - `/api/v1/articles/pages`: Get the number of pages of articles.
+  - `/api/v1/articles/{id}`: Fetch a specific article by its ID.
+  - `/api/v1/articles/index/refresh`: Refresh the article index.
+  - `/api/v1/articles/cache`: Manage the article cache.
+  - `/api/v1/articles/{id}/refresh`: Refresh a specific article's cache.
+  - `/api/v1/articles/tags/{tag}`: Retrieve a list of articles by a specific tag.
+  - `/api/v1/articles/tags/{tag}/pages`: Get the number of pages of articles by tag.
+  - `/api/v1/articles/cache/stats`: Get cache statistics.
+  - `/api/v1/articles/cache/stats/reset`: Reset cache statistics.
 
 For more details, see the [API Documentation](docs/api.md).
 
