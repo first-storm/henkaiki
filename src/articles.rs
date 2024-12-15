@@ -1,4 +1,3 @@
-// src/articles.rs
 use crate::markdown::MarkdownConverter;
 use crate::config;
 use anyhow::{Result, bail};
