@@ -15,6 +15,7 @@ This document serves as a comprehensive guide to configuring the Article Managem
      - [`sample_article`](#sample_article)
      - [`address`](#address)
      - [`port`](#port)
+     - [`record_cache_stats`](#record_cache_stats)
    - [Markdown Extensions](#markdown-extensions)
      - [`strikethrough`](#strikethrough)
      - [`table`](#table)
@@ -29,6 +30,13 @@ This document serves as a comprehensive guide to configuring the Article Managem
      - [`wikilinks_title_before_pipe`](#wikilinks_title_before_pipe)
      - [`spoiler`](#spoiler)
      - [`greentext`](#greentext)
+     - [`front_matter_delimiter`](#front_matter_delimiter)
+     - [`header_ids`](#header_ids)
+     - [`shortcodes`](#shortcodes)
+     - [`subscript`](#subscript)
+     - [`superscript`](#superscript)
+     - [`tagfilter`](#tagfilter)
+     - [`underline`](#underline)
 4. [Default Values](#default-values)
 5. [How Configuration is Loaded](#how-configuration-is-loaded)
 6. [Examples](#examples)
@@ -130,7 +138,6 @@ The `[mainconfig]` section contains general settings that affect the application
   ```toml
   record_cache_stats = true
   ```
-
 
 ### Markdown Extensions
 
@@ -281,6 +288,83 @@ Each extension is a boolean value (`true` or `false`). The default for all exten
   greentext = true
   ```
 
+#### `front_matter_delimiter`
+
+- **Description**: Specifies a delimiter for front matter in articles.
+- **Type**: String
+- **Default**: None
+- **Example**:
+
+  ```toml
+  front_matter_delimiter = "---"
+  ```
+
+#### `header_ids`
+
+- **Description**: Allows specifying custom header IDs.
+- **Type**: String
+- **Default**: None
+- **Example**:
+
+  ```toml
+  header_ids = "custom-id"
+  ```
+
+#### `shortcodes`
+
+- **Description**: Enables the use of shortcodes in articles.
+- **Type**: Boolean
+- **Default**: `true`
+- **Example**:
+
+  ```toml
+  shortcodes = true
+  ```
+
+#### `subscript`
+
+- **Description**: Enables subscript syntax.
+- **Type**: Boolean
+- **Default**: `true`
+- **Example**:
+
+  ```toml
+  subscript = true
+  ```
+
+#### `superscript`
+
+- **Description**: Enables superscript syntax.
+- **Type**: Boolean
+- **Default**: `true`
+- **Example**:
+
+  ```toml
+  superscript = true
+  ```
+
+#### `tagfilter`
+
+- **Description**: Enables filtering of HTML tags.
+- **Type**: Boolean
+- **Default**: `true`
+- **Example**:
+
+  ```toml
+  tagfilter = true
+  ```
+
+#### `underline`
+
+- **Description**: Enables underline syntax.
+- **Type**: Boolean
+- **Default**: `true`
+- **Example**:
+
+  ```toml
+  underline = true
+  ```
+
 ---
 
 ## Default Values
@@ -348,6 +432,13 @@ wikilinks_title_after_pipe = true
 wikilinks_title_before_pipe = true
 spoiler = true
 greentext = true
+front_matter_delimiter = "---"
+header_ids = "custom-id"
+shortcodes = true
+subscript = true
+superscript = true
+tagfilter = true
+underline = true
 ```
 
 **Explanation**:
