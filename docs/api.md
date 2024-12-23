@@ -17,6 +17,8 @@ This document provides detailed information about the API endpoints, input and o
   - `/api/v1/articles/tags/{tag}/pages`
   - `/api/v1/articles/cache/stats`
   - `/api/v1/articles/cache/stats/reset`
+  - `/api/v1/articles/search`
+  - `/api/v1/articles/search/pages`
 
 ---
 
@@ -361,6 +363,83 @@ Reset the cache statistics counters.
 
 ---
 
+### 12. Search Articles
+
+Search articles by title or description with optional pagination.
+
+- **Endpoint**
+  ```
+  GET /api/v1/articles/search
+  ```
+
+- **Query Parameters**
+  - `query` (required): The search string
+  - `limit` (optional): Maximum number of articles per page
+  - `page` (optional): Page number (0-based index)
+
+- **Responses**
+  - **200 OK**: A list of matching articles is returned
+  - **400 Bad Request**: Invalid pagination parameters or page out of range
+  - **500 Internal Server Error**: Failed to perform the search
+
+- **Example Requests**
+  ```
+  GET /api/v1/articles/search?query=sample
+  GET /api/v1/articles/search?query=sample&limit=10&page=0
+  ```
+
+- **Example Response**
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": 1,
+        "title": "Sample Article",
+        "description": "A sample article summary.",
+        "date": 20231015,
+        "tags": ["sample", "demo"],
+        "keywords": ["example", "sample article"]
+      }
+    ],
+    "message": null
+  }
+  ```
+
+---
+
+### 13. Get Search Pages
+
+Get the total number of pages for a given search query.
+
+- **Endpoint**
+  ```
+  GET /api/v1/articles/search/pages
+  ```
+
+- **Query Parameters**
+  - `query` (required): The search string
+  - `limit` (optional): Maximum number of articles per page (default: 10)
+
+- **Responses**
+  - **200 OK**: Returns the total number of pages matching the search query
+
+- **Example Request**
+  ```
+  GET /api/v1/articles/search/pages?query=sample&limit=10
+  ```
+
+- **Example Response**
+  ```json
+  {
+    "success": true,
+    "data": 2,
+    "message": null
+  }
+  ```
+
+---
+
 ## Data Models
 
 ### ApiResponse Object
@@ -449,8 +528,9 @@ Represents statistics about cache usage.
 
 ## Notes
 
-- **Pagination**: Many endpoints support pagination through optional `limit` and `page` query parameters
-- **Sample Article**: If the configuration includes the sample article, ID `0` is reserved for it
-- **Default Page Size**: When using pagination, the default page size is 10 items per page
-- **Page Numbers**: Page numbers are 0-based indices
-- **Cache Management**: Cache-related endpoints are now consolidated under the `/api/v1/articles/cache` path
+- **Pagination**: Many endpoints support pagination through optional `limit` and `page` query parameters  
+- **Sample Article**: If the configuration includes the sample article, ID `0` is reserved for it  
+- **Default Page Size**: When using pagination, the default page size is 10 items per page  
+- **Page Numbers**: Page numbers are 0-based indices  
+- **Cache Management**: Cache-related endpoints are consolidated under the `/api/v1/articles/cache` path  
+- **Search**: The search endpoints (`/api/v1/articles/search` and `/api/v1/articles/search/pages`) allow filtering articles by title or description.

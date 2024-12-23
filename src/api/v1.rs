@@ -259,6 +259,75 @@ async fn reset_cache_stats(cache_recorder: Data<Mutex<CacheHit>>) -> impl Respon
     })
 }
 
+/// Parameters for searching articles
+#[derive(Deserialize)]
+struct SearchParams {
+    query: String,
+    limit: Option<usize>,
+    page: Option<usize>,
+}
+
+/// Searches for articles (title/description) with optional pagination
+#[get("/api/v1/articles/search")]
+async fn search_articles(
+    articles_data: Data<Articles>,
+    query: Query<SearchParams>,
+) -> impl Responder {
+    let query_str = query.query.trim();
+
+    // If both limit and page are provided, process paginated results
+    if let (Some(limit), Some(page)) = (query.limit, query.page) {
+        match articles_data.search_articles_paginated(query_str, limit, page) {
+            Ok(articles) => HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                data: articles,
+                message: None,
+            }),
+            Err(e) => {
+                error!("Error retrieving paginated search results: {:?}", e);
+                HttpResponse::BadRequest().json(ApiResponse::<()> {
+                    success: false,
+                    data: (),
+                    message: Some("Invalid pagination parameters or page out of range".into()),
+                })
+            }
+        }
+    } else {
+        // If no pagination parameters, return all matching articles
+        match articles_data.search_articles(query_str) {
+            Ok(articles) => HttpResponse::Ok().json(ApiResponse {
+                success: true,
+                data: articles,
+                message: None,
+            }),
+            Err(e) => {
+                error!("Error searching articles: {:?}", e);
+                HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                    success: false,
+                    data: (),
+                    message: Some("Failed to search articles".into()),
+                })
+            }
+        }
+    }
+}
+
+/// Gets total number of pages for a given search query
+#[get("/api/v1/articles/search/pages")]
+async fn get_search_pages(
+    articles_data: Data<Articles>,
+    query: Query<SearchParams>,
+) -> impl Responder {
+    let query_str = query.query.trim();
+    let limit = query.limit.unwrap_or(DEFAULT_PAGE_SIZE);
+    let pages = articles_data.get_search_article_page_count(query_str, limit);
+    HttpResponse::Ok().json(ApiResponse {
+        success: true,
+        data: pages,
+        message: None,
+    })
+}
+
 /// Configures the API v1 routes
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_articles)
@@ -270,5 +339,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(list_articles_by_tag)
         .service(get_tag_pages)
         .service(get_cache_stats)
-        .service(reset_cache_stats);
+        .service(reset_cache_stats)
+        .service(search_articles)
+        .service(get_search_pages);
 }

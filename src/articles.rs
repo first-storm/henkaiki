@@ -1,5 +1,5 @@
-use crate::markdown::MarkdownConverter;
 use crate::config;
+use crate::markdown::MarkdownConverter;
 use anyhow::{Result, bail};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
@@ -159,7 +159,9 @@ impl Articles {
                 keywords: SAMPLE_ARTICLE.keywords.clone(),
             };
             let sample_metainfo = Arc::new(sample_metainfo);
-            self.index.by_id.insert(SAMPLE_ARTICLE.id, Arc::clone(&sample_metainfo));
+            self.index
+                .by_id
+                .insert(SAMPLE_ARTICLE.id, Arc::clone(&sample_metainfo));
             for tag in sample_metainfo.tags.iter() {
                 self.index
                     .by_tag
@@ -420,7 +422,11 @@ impl Articles {
         }
         let md_file_path = article_dir.join(&*metainfo.markdown_path);
         if !md_file_path.is_file() {
-            bail!("Markdown file '{}' is missing for article ID {}", metainfo.markdown_path, article_id);
+            bail!(
+                "Markdown file '{}' is missing for article ID {}",
+                metainfo.markdown_path,
+                article_id
+            );
         }
         let markdown_content = Self::read_file_as_string(&md_file_path)?;
         let html_content = markdown_content.to_html_with_config(&config::CONFIG);
@@ -433,6 +439,62 @@ impl Articles {
             tags: Arc::clone(&metainfo.tags),
             keywords: Arc::clone(&metainfo.keywords),
         })
+    }
+
+    // Search articles by keywords in the title and description
+    pub fn search_articles(&self, query: &str) -> Result<Vec<ArticleSummary>> {
+        let locked_ids = self.index.sorted_ids.lock().unwrap();
+        let mut results = Vec::new();
+        for &id in locked_ids.iter() {
+            if let Some(m) = self.index.by_id.get(&id) {
+                let m = m.value();
+                if m.title.contains(query) || m.description.contains(query) {
+                    results.push(ArticleSummary {
+                        id: m.id,
+                        title: Arc::clone(&m.title),
+                        description: Arc::clone(&m.description),
+                        date: m.date,
+                        tags: Arc::clone(&m.tags),
+                        keywords: Arc::clone(&m.keywords),
+                    });
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    // paginated search article
+    pub fn search_articles_paginated(
+        &self,
+        query: &str,
+        max_per_page: usize,
+        page_number: usize,
+    ) -> Result<Vec<ArticleSummary>> {
+        let results = self.search_articles(query)?;
+        let total_articles = results.len();
+
+        if max_per_page == 0 {
+            return Ok(vec![]);
+        }
+
+        let total_pages = (total_articles + max_per_page - 1) / max_per_page;
+        if page_number >= total_pages && total_pages != 0 {
+            bail!("Page number out of range");
+        }
+
+        let start = page_number * max_per_page;
+        let end = (start + max_per_page).min(total_articles);
+        Ok(results[start..end].to_vec())
+    }
+
+    // total pages for search articles
+    pub fn get_search_article_page_count(&self, query: &str, max_per_page: usize) -> usize {
+        let results = self.search_articles(query).unwrap_or_default();
+        let total_articles = results.len();
+        if total_articles == 0 || max_per_page == 0 {
+            return 0;
+        }
+        (total_articles + max_per_page - 1) / max_per_page
     }
 
     fn parse_metainfo(path: &PathBuf) -> Result<Metainfo> {
@@ -451,7 +513,8 @@ impl Articles {
             id: article_section
                 .get("id")
                 .and_then(|v| v.as_integer())
-                .ok_or_else(|| anyhow::anyhow!("Missing 'id' in {:?}", path))? as i32,
+                .ok_or_else(|| anyhow::anyhow!("Missing 'id' in {:?}", path))?
+                as i32,
             title: article_section
                 .get("title")
                 .and_then(|v| v.as_str())
@@ -470,7 +533,8 @@ impl Articles {
             date: article_section
                 .get("date")
                 .and_then(|v| v.as_integer())
-                .ok_or_else(|| anyhow::anyhow!("Missing 'date' in {:?}", path))? as u32,
+                .ok_or_else(|| anyhow::anyhow!("Missing 'date' in {:?}", path))?
+                as u32,
             tags: tags.into(),
             keywords: keywords.into(),
         })
