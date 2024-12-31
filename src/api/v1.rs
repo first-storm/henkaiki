@@ -327,11 +327,12 @@ async fn get_search_pages(
         message: None,
     })
 }
-
 /// Configures the API v1 routes
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_articles)
         .service(get_article_pages)
+        .service(search_articles)
+        .service(get_search_pages)
         .service(get_article)
         .service(refresh_index)
         .service(clear_cache)
@@ -339,7 +340,5 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(list_articles_by_tag)
         .service(get_tag_pages)
         .service(get_cache_stats)
-        .service(reset_cache_stats)
-        .service(search_articles)
-        .service(get_search_pages);
+        .service(reset_cache_stats);
 }
