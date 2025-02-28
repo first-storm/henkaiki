@@ -49,6 +49,8 @@ pub struct Main {
     pub port: u16,
     #[serde(default = "default_record_cache_stats")]
     pub record_cache_stats: bool,
+    #[serde(default = "default_markdown_to_html")]
+    pub markdown_to_html: bool,
 }
 
 fn default_path() -> String {
@@ -62,6 +64,7 @@ fn default_sample_article() -> bool { false }
 fn default_address() -> String { "127.0.0.1".to_string() }
 fn default_port() -> u16 { 8080 }
 fn default_record_cache_stats() -> bool { false }
+fn default_markdown_to_html() -> bool { true }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Extensions {
