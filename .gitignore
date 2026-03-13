@@ -2,3 +2,5 @@
 /.vscode
 /target
 /testrun
+config.toml
+/articles
